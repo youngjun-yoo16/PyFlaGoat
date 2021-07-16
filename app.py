@@ -6,6 +6,10 @@ import random, os, pickle, base64
 
 app = Flask(__name__)
 app.secret_key = 'thisisasuperdupersecretkey'
+
+app.SESSION_COOKIE_HTTPONLY = False
+app.REMEMBER_COOKIE_HTTPONLY = False
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database/default.db'
 app.config['SQLALCHEMY_BINDS'] = {
     'injection': 'sqlite:///database/injection.db',
@@ -50,15 +54,17 @@ def login():
     if request.method == 'POST':
         session.pop('user_id', None)
 
-        username = request.form['username']
-        password = request.form['password']
+        acc_username = request.form['username']
+        acc_password = request.form['password']
         
-        user = [x for x in User.query.all() if x.username == username][0]
-        if user and user.password == password:
+        user = User.query.filter_by(username=acc_username).first()
+
+        if user and user.password == acc_password:
             session['user_id'] = user.id
             return redirect("/")
         else:
-            return render_template('login.html', fail=True)
+            flash("Your username does not exist, or your password is incorrect. Try again.")
+            return render_template("flash.html")
     else:
         return render_template('login.html', fail=False)
 
@@ -67,6 +73,26 @@ def logout():
     if g.user:
         session.pop('user_id', None)
     return redirect("/")
+
+@app.route('/register', methods=['GET', 'POST'])
+def register_user():
+    if request.method == 'POST':
+        acc_username = request.form['username']
+        username_exists = len(User.query.filter_by(username=acc_username).all())
+        if username_exists:
+            flash("Registration Failed! Username is already in use.")
+            return render_template("flash.html")
+        acc_password = request.form['password']
+        acc_name = request.form['name']
+        new_acc = User(username=acc_username, password=acc_password, name=acc_name)
+        db.session.add(new_acc)
+        db.session.commit()
+        session.pop('user_id', None)
+        session['user_id'] = new_acc.id
+        return redirect('/')
+    else:
+        return render_template("register.html")
+
 
 #################
 # SQL INJECTION #
@@ -490,8 +516,6 @@ def serialize_exploit():
             all_commands = Serialization.query.filter(text("data={}".format("\'"+ command +"\'"))).all()
             return render_template('insecure_deserialization/serialized.html', commands = all_commands)
         else:
-            path = ""
-            flag = 0
             alr_serialized = request.form['serialized']
             deserialized_object = pickle.loads(base64.urlsafe_b64decode(alr_serialized))
             unique_serializedCommand = len(Deserialization.query.filter_by(serialized=alr_serialized).all())
@@ -500,19 +524,16 @@ def serialize_exploit():
                 db.session.add(new_serializedCommand)
                 db.session.commit()
             all_commands = Deserialization.query.filter(text("serialized={}".format("\'"+ alr_serialized +"\'"))).all()
+            print("")
             print("Deserialized Command: " + deserialized_object)
             if "cd" in deserialized_object:
-                for elem in deserialized_object:
-                    if elem == ' ':
-                        flag += 1
-                    elif flag == 1:
-                        path += elem
-                    elif flag == 2:
-                        break
+                path = deserialized_object[3 : len(deserialized_object)]
                 os.chdir(path)
                 print("Current Working Directory:", os.getcwd())
+                print("")
             else:
                 os.system(deserialized_object)
+                print("")
             return render_template('insecure_deserialization/deserialized.html', commands = all_commands)
     else:
         return render_template('insecure_deserialization/deserialization.html')
