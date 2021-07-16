@@ -7,6 +7,7 @@
 </div>
 <hr />
 
+<link rel="stylesheet" type="text/css" href="/static/css/deserialized.css">
 {% for command in commands %}
 <p> <b>Serialized Linux Command:</b> {{ command.serialized }}</p>
 <p> <b>Deserialized Linux Command:</b> {{ command.deserialized }} </p>
@@ -16,6 +17,7 @@
 <hr />
 {% endfor %} 
 <a class="btn btn-dark" href="/insecure-deserialization">Go Back</a>
+<a class="btn btn-primary" href="http://localhost:5000/insecure-deserialization/log_stream" target="_blank">See Log</a>
 <br />
 <br />
 <br />
