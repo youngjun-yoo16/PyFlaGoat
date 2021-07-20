@@ -515,14 +515,20 @@ deserialized_storage = []
 
 def flask_logger(deserialized_object):
     with open("static/job.log") as log_info:
+        time.sleep(0.5)
+        logger.info("Processing ...")
+        data = log_info.read()
+        yield data.encode()
+        time.sleep(1)
         logger.info("Deserialized Command: " + deserialized_object)
         data = log_info.read()
         time.sleep(1)
         yield data.encode()
-        time.sleep(1.5)
+        time.sleep(1.2)
         if "cd" in deserialized_object:
-            os.chdir(deserialized_object)
-            logger.info("Current Working Directory: " + str(os.getcwd()))
+            path = deserialized_object[3 : len(deserialized_object)]
+            os.chdir(path)
+            logger.info("Current Working Directory: " + str(os.getcwd()))   
             data = log_info.read()
             yield data.encode()
         else:
@@ -538,16 +544,19 @@ def stream():
     deserialized_object = deserialized_storage[-1]
     return Response(flask_logger(deserialized_object), mimetype="text/plain", content_type="text/event-stream")
 
+@app.route("/insecure-deserialization/log_view", methods=["GET"])
+def log_view():
+    return render_template('insecure_deserialization/log.html')
+
 @app.route('/insecure-deserialization', methods=['GET', 'POST'])
 def serialize_exploit():
     if request.method == 'POST':
         if request.form['action'] == "Serialize":
             command = request.form['command']
-            serialized_command = str(base64.urlsafe_b64encode(pickle.dumps(command)))
-            extracted_command  = serialized_command[2 : len(serialized_command) - 1]
+            serialized_command = base64.urlsafe_b64encode(pickle.dumps(command)).strip().decode('utf-8')
             unique_command = len(Serialization.query.filter_by(data=command).all())
             if not unique_command:
-                new_command = Serialization(data=command, serialized=extracted_command)
+                new_command = Serialization(data=command, serialized=serialized_command)
                 db.session.add(new_command)
                 db.session.commit()
             all_commands = Serialization.query.filter(text("data={}".format("\'"+ command +"\'"))).all()
@@ -572,6 +581,7 @@ def serialize_exploit():
             else:
                 os.system(deserialized_object)
                 print("")
+            
             return render_template('insecure_deserialization/deserialized.html', commands = all_commands)
     else:
         return render_template('insecure_deserialization/deserialization.html')
