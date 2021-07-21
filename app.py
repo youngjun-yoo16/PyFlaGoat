@@ -11,7 +11,6 @@ import base64
 import time
 
 app = Flask(__name__)
-app.secret_key = 'thisisasuperdupersecretkey'
 
 app.SESSION_COOKIE_HTTPONLY = False
 app.REMEMBER_COOKIE_HTTPONLY = False
@@ -506,15 +505,17 @@ class Deserialization(db.Model):
     id = db.Column(db.Integer, primary_key=True, nullable=False)
     serialized = db.Column(db.String(100), nullable=False)
     deserialized = db.Column(db.String(100), nullable=False)
-    
+
+log_path = os.path.join(os.getcwd(), "static", "job.log")
+
 # configure logger
-logger.add("static/job.log", format="{time} - {message}")
+logger.add(log_path, format="{time} - {message}")
 
 # list to store deserialized_object, making it availabe to stream()
 deserialized_storage = []
 
 def flask_logger(deserialized_object):
-    with open("static/job.log") as log_info:
+    with open(log_path) as log_info:
         time.sleep(0.5)
         logger.info("Processing ...")
         data = log_info.read()
@@ -537,7 +538,7 @@ def flask_logger(deserialized_object):
             data = log_info.read()
             yield data.encode()
             
-        open("static/job.log", 'w').close()
+        open(log_path, 'w').close()
 
 @app.route("/insecure-deserialization/log_stream", methods=["GET"])
 def stream():
