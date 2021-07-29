@@ -1,9 +1,10 @@
 from flask import Flask, Markup, render_template, request, redirect, flash, make_response, session, g, Response
+from flask.helpers import url_for
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from sqlalchemy.sql import text
 from loguru import logger
-import io
+from io import StringIO
 import subprocess
 import random
 import zipfile
@@ -11,18 +12,18 @@ import os
 import pickle
 import base64
 import time
+import urllib.parse
 
 app = Flask(__name__)
-
 app.SESSION_COOKIE_HTTPONLY = False
 app.REMEMBER_COOKIE_HTTPONLY = False
-
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database/default.db'
 app.config['SQLALCHEMY_BINDS'] = {
     'injection': 'sqlite:///database/injection.db',
     'broken_access': 'sqlite:///database/broken_access.db'
 }
 app.config['SECRET_KEY'] = 'FASOO'
+
 db = SQLAlchemy(app)
 db.create_all()
 db.session.commit()
@@ -55,6 +56,11 @@ def before_request():
     if 'user_id' in session:
         user = [x for x in User.query.all() if x.id == session['user_id']][0]
         g.user = user
+    
+    g.safe_mode_on = False
+
+    if 'safe_mode_on' in session:
+        g.safe_mode_on = session['safe_mode_on'] 
 
 @app.route('/login',  methods=['GET', 'POST'])
 def login():
@@ -100,6 +106,29 @@ def register_user():
     else:
         return render_template("register.html")
 
+######################
+# TOGGLE SECURE MODE #
+######################
+
+@app.route('/togglemode', methods=['GET', 'POST'])
+def togglemode():
+    new_mode = not session.pop('safe_mode_on', False)
+    session['safe_mode_on'] = new_mode
+    return redirect_back()
+
+def redirect_back(default='hello', **kwargs):
+    for target in request.args.get('next'), request.referrer:
+        if not target:
+            continue
+        if is_safe_url(target):
+            return redirect(target)
+    return redirect(url_for(default, **kwargs))
+ 
+def is_safe_url(target):
+    ref_url = urllib.parse.urlparse(request.host_url)
+    test_url = urllib.parse.urlparse(urllib.parse.urljoin(request.host_url, target))
+    return test_url.scheme in ('http', 'https') and ref_url.netloc == test_url.netloc
+
 
 #################
 # SQL INJECTION #
@@ -120,7 +149,10 @@ class BlogPost(db.Model):
 def posts():
         if request.method == 'POST':
             post_filter_by = request.form['auth_TAN']
-            all_posts = BlogPost.query.filter(text("auth_TAN={}".format("\'"+ post_filter_by +"\'"))).all()
+            if g.safe_mode_on:
+                all_posts = BlogPost.query.filter_by(auth_TAN=post_filter_by).all()
+            else:
+                all_posts = BlogPost.query.filter(text("auth_TAN={}".format("\'"+ post_filter_by +"\'"))).all()
             return render_template('sql_injection/posts.html', posts=all_posts)
         else:
             all_posts = BlogPost.query.order_by(BlogPost.date_posted).all()
@@ -269,9 +301,14 @@ class XXE(db.Model):
     def __repr__(self):
         return 'Comment ' + str(self.id)
     
+@app.route('/xxe-intro', methods=['GET', "POST"])
+def xxe_intro():
+    return render_template('xxe/intro.html')
+    
 @app.route('/xxe', methods=['GET', 'POST'])
 def xxe():
     path = ""
+    xml = '''<?xml version='1.0'?><!DOCTYPE comment [<!ENTITY xxe SYSTEM "/app">]><comment><text>&xxe;</text></comment>'''
     flag = 0
     if request.method == 'POST':
         user_name = request.form['author']
@@ -293,7 +330,33 @@ def xxe():
         return redirect('/xxe')
     else:
         all_comments = XXE.query.order_by(XXE.date_posted).all()
-        return render_template("xxe/xxe.html", comments=all_comments)
+        return render_template("xxe/xxe.html", comments=all_comments, xml=xml)
+
+def xxe_secure():
+    path = ""
+    xml = '''<?xml version='1.0'?><!DOCTYPE comment [<!ENTITY xxe SYSTEM "/app">]><comment><text>&xxe;</text></comment>'''
+    flag = 0
+    if request.method == 'POST':
+        user_name = request.form['author']
+        user_comment = request.form['comment']
+        if "<?xml version='1.0'?>" in user_comment:
+            for elem in user_comment:
+                if elem == '"':
+                    flag += 1
+                elif flag == 1:
+                    path += elem
+                elif flag == 2:
+                    break   
+            all_files = str(os.listdir(path))
+            new_comment = XXE(author=user_name, comment=all_files)
+        else:
+            new_comment = XXE(author=user_name, comment=user_comment)
+        db.session.add(new_comment)
+        db.session.commit()
+        return redirect('/xxe')
+    else:
+        all_comments = XXE.query.order_by(XXE.date_posted).all()
+        return render_template("xxe/xxe.html", comments=all_comments, xml=xml)
 
 @app.route('/xxe/delete/<int:id>')
 def delete_comment(id):

@@ -17,6 +17,14 @@
 
     <header class="header body-pd" id="header">
         <div class="header_toggle" class="bx-x"> <i class='bx bx-menu' id="header-toggle"></i> </div>
+          
+        {% if g.safe_mode_on %}
+        <a class="btn btn-success" href="/togglemode"> Mode: SECURE</a>
+
+        {% else %}
+        <a class="btn btn-danger" href="/togglemode"> Mode: VULNERABLE</a>
+        
+        {% endif %}
         
         {% if g.user %}
         <span>Hello, <b>{{g.user.name}}&nbsp;&nbsp;&nbsp;</b> <a type="button" class="btn btn-danger" href="/logout">Log Out</a></span>
@@ -33,7 +41,7 @@
                     <a href="/sql_injection" class="nav_link"> <i class='bx bxs-virus nav_icon'></i> <span class="nav_name">SQL Injection</span> </a> 
                     <a href="/auth" class="nav_link"> <i class='bx bx-user-x nav_icon'></i> <span class="nav_name">Broken Authentication</span> </a> 
                     <a href="/sensitive_data" class="nav_link"> <i class='bx bxs-user-detail nav_icon'></i> <span class="nav_name">Sensitive Data Exposure</span> </a> 
-                    <a href="/xxe" class="nav_link"> <i class='bx bx-link-external nav_icon'></i> <span class="nav_name">XML External Entity</span> </a> 
+                    <a href="/xxe-intro" class="nav_link"> <i class='bx bx-link-external nav_icon'></i> <span class="nav_name">XML External Entity</span> </a> 
                     <a href="/csrf" class="nav_link"> <i class='bx bx-git-pull-request nav_icon'></i> <span class="nav_name">Request Forgeries</span> </a> 
                     <a href="/broken_access" class="nav_link"> <i class='bx bx-network-chart nav_icon'></i> <span class="nav_name">Broken Access Control</span> </a>
                     <a href="/xss" class="nav_link"> <i class='bx bx-cctv nav_icon'></i> <span class="nav_name">Cross-Site Scripting</span> </a>
