@@ -147,6 +147,10 @@ class BlogPost(db.Model):
     def __repr__(self):
         return 'Blog Post ' + str(self.id)
 
+@app.route('/sql_injection-intro', methods=['GET', "POST"])
+def sql_injection_intro():
+    return render_template('sql_injection/intro.html')
+
 @app.route('/sql_injection', methods=['GET', 'POST'])
 def posts():
         if request.method == 'POST':
@@ -371,7 +375,11 @@ class Frontend(db.Model):
     inputMax = db.Column(db.String(10), nullable=False)
     readonly = db.Column(db.String(10), nullable=False)
 
-@app.route('/client/front-end', methods=['GET', 'POST'])
+@app.route('/front-end-intro', methods=['GET', "POST"])
+def frontend_intro():
+    return render_template('frontend/intro.html')
+
+@app.route('/front-end', methods=['GET', 'POST'])
 def frontend():
     if request.method == 'POST':
         select_field = request.form['company']
@@ -382,9 +390,12 @@ def frontend():
         new_input = Frontend(company=select_field, profession=radio_button, role=checkbox, inputMax=input_5, readonly=random_input)
         db.session.add(new_input)
         db.session.commit()
-        return redirect('/client/front-end')
+        return redirect('/front-end')
     else:
-        return render_template("client_side/frontend.html")
+        if g.safe_mode_on:
+            return render_template("frontend/frontend_secure.html")
+        else:
+            return render_template("frontend/frontend.html")
 
 #######################################
 # CLIENT SIDE - CLIENT SIDE FILTERING #
@@ -396,6 +407,10 @@ class Filtering(db.Model):
     lastName = db.Column(db.String(20), nullable=False)
     SSN = db.Column(db.String(10), nullable=False)
     salary = db.Column(db.Integer, nullable=False)
+
+@app.route('/client/client-filtering-intro', methods=['GET', "POST"])
+def client_filtering_intro():
+    return render_template('client_side/intro.html')
 
 @app.route('/client/client-filtering/new', methods=['GET', 'POST'])
 def filtering():
@@ -428,11 +443,14 @@ def profile():
                 flash("Wrong! That's not his salary, try again!")
                 return render_template("flash.html")
         else:
-            post_filter_by = request.form['firstName']
-            all_posts = Filtering.query.filter(text("firstName={}".format("\'"+ post_filter_by +"\'"))).all()
+            name_filter_by = request.form['firstName']
+            all_posts = Filtering.query.filter(text("firstName={}".format("\'"+ name_filter_by +"\'"))).all()
             return render_template('client_side/filtered.html', posts=all_posts)
     else:
-       return render_template('client_side/client_filtering.html')
+        if g.safe_mode_on:
+            return render_template('client_side/client_filtering_secure.html')
+        else:
+            return render_template('client_side/client_filtering.html')
 
 @app.route('/client/client-filtering/filtered', methods=['GET', 'POST'])
 def filtered():
@@ -513,6 +531,10 @@ def create_user():
 # XSS #
 #######
 
+@app.route('/xss-intro', methods=['GET', "POST"])
+def xss_intro():
+    return render_template('xss/intro.html')
+
 @app.route('/xss', methods=['GET', 'POST'])
 def xss():
         if request.method == 'POST':
@@ -557,10 +579,10 @@ class Deserialization(db.Model):
 
 log_path = os.path.join(os.getcwd(), "static", "job.log")
 
-# configure logger
+# Configure logger
 logger.add(log_path, format="{time} - {message}")
 
-# list to store deserialized_object, making it availabe to stream()
+# Dictionary to store deserialized_object and safe status, making it availabe to stream()
 deserialized_storage = {}
 
 def flask_logger(deserialized_object, status):
@@ -723,6 +745,10 @@ class CSRF_Comment(db.Model):
     
     def __repr__(self):
         return 'Comment ' + str(self.id)
+
+@app.route('/csrf-intro', methods=['GET', 'POST'])
+def csrf_intro():
+    return render_template("csrf/intro.html")
     
 @app.route('/csrf', methods=['GET', 'POST'])
 def csrf():
